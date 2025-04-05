@@ -1,0 +1,40 @@
+[project]
+name = "klokku-python-client"
+version = "0.1.0"
+description = "Klokku REST API client"
+authors = [
+    {name = "Mariusz Józala"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiohttp (>=3.11.16,<4.0.0)",
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+]
+
+license = "MIT"
+
+[tool.poetry]
+packages = [{include = "klokku_python_client", from = "src"}]
+
+[tool.poetry.group.test]
+optional = true
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.5"
+pytest-asyncio = "^0.26.0"
+aioresponses = "^0.7.8"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[project.urls]
+Homepage = "https://klokku.com"
+Repository = "https://github.com/klokku/klokku-python-client"
+Issues = "https://github.com/klokku/klokku-python-client/issues"

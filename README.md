@@ -69,6 +69,19 @@ asyncio.run(main())
 
 ## Development
 
+### CI/CD
+
+This project uses GitHub Actions for continuous integration and deployment:
+
+1. **Build Workflow**: Runs on every push to the main branch, executing tests and building the package.
+2. **Publish Workflow**: Automatically publishes the package to PyPI when a new GitHub Release is created.
+
+To set up the publishing workflow:
+
+1. Generate a PyPI API token at https://pypi.org/manage/account/token/
+2. Add the token as a GitHub repository secret named `PYPI_API_TOKEN`
+3. Create a new GitHub Release to trigger the publishing workflow
+
 ### Setup
 
 1. Clone the repository

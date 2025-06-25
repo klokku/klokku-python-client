@@ -113,12 +113,18 @@ To run the tests:
 pytest
 ```
 
+Or with Poetry
+
+```bash
+poetry run pytest
+```
+
 For more details about testing, see the [tests README](tests/README.md).
 
 ## Requirements
 
 - Python 3.13+
-- aiohttp 3.11+
+- aiohttp 3.12+
 
 ## License
 

@@ -26,13 +26,13 @@ poetry install --with test
 Then run the tests using pytest:
 
 ```bash
-pytest
+pytest -v
 ```
 
-To run with verbose output:
+or
 
 ```bash
-pytest -v
+poetry run pytest -v
 ```
 
 ## Test Coverage

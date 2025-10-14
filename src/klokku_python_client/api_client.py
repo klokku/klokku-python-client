@@ -39,7 +39,8 @@ class Budget:
     name: str
     weeklyTime: int
     icon: str = ""
-    status: str = "ACTIVE"
+    startDate: str = ""
+    endDate: str = ""
 
 @dataclass(frozen=True)
 class User:

@@ -111,8 +111,8 @@ async def test_get_all_budgets_success(api_client, mock_aioresponse):
     
     # Mock the get_all_budgets response
     budgets_data = [
-        {"id": 1, "name": "Budget 1", "weeklyTime": 3600, "icon": "icon1", "status": "ACTIVE"},
-        {"id": 2, "name": "Budget 2", "weeklyTime": 7200, "icon": "icon2", "status": "ACTIVE"}
+        {"id": 1, "name": "Budget 1", "weeklyTime": 3600, "icon": "icon1", "startDate": "2024-09-08T00:00:00Z"},
+        {"id": 2, "name": "Budget 2", "weeklyTime": 7200, "icon": "icon2", "startDate": "2025-09-08T00:00:00Z"},
     ]
     mock_aioresponse.get(
         f"{TEST_URL}api/budget",
@@ -132,7 +132,7 @@ async def test_get_all_budgets_success(api_client, mock_aioresponse):
     assert budgets[0].name == "Budget 1"
     assert budgets[0].weeklyTime == 3600
     assert budgets[0].icon == "icon1"
-    assert budgets[0].status == "ACTIVE"
+    assert budgets[0].startDate == "2024-09-08T00:00:00Z"
 
 
 async def test_get_all_budgets_unauthenticated(api_client, mock_aioresponse):
@@ -177,7 +177,7 @@ async def test_get_current_event_success(api_client, mock_aioresponse):
             "name": "Budget 1",
             "weeklyTime": 3600,
             "icon": "icon1",
-            "status": "ACTIVE"
+            "startDate": "2025-09-08T00:00:00Z"
         }
     }
     mock_aioresponse.get(
@@ -200,7 +200,7 @@ async def test_get_current_event_success(api_client, mock_aioresponse):
     assert event.budget.name == "Budget 1"
     assert event.budget.weeklyTime == 3600
     assert event.budget.icon == "icon1"
-    assert event.budget.status == "ACTIVE"
+    assert event.budget.startDate == "2025-09-08T00:00:00Z"
 
 
 async def test_get_current_event_unauthenticated(api_client, mock_aioresponse):

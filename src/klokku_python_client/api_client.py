@@ -38,6 +38,7 @@ class Budget:
     id: int
     name: str
     weeklyTime: int
+    weeklyOccurrences: int = 0
     icon: str = ""
     startDate: str = ""
     endDate: str = ""
@@ -62,6 +63,8 @@ class KlokkuApi:
     session: Optional[aiohttp.ClientSession] = None
 
     def __init__(self, url):
+        if not url.endswith("/"):
+            url += "/"
         self.url = url
         self.session = None
 

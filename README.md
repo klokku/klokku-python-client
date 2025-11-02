@@ -121,6 +121,12 @@ poetry run pytest
 
 For more details about testing, see the [tests README](tests/README.md).
 
+### Releasing
+
+1. Upgrade the version in `pyproject.toml`
+2. Create a new GitHub Release
+3. The GitHub Actions build workflow will automatically publish the package to PyPI
+
 ## Requirements
 
 - Python 3.13+

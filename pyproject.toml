@@ -1,6 +1,6 @@
 [project]
 name = "klokku-python-client"
-version = "0.2.0"
+version = "0.2.1"
 description = "Klokku REST API client"
 authors = [
     {name = "Mariusz Józala"}

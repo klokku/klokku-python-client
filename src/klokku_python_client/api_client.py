@@ -45,7 +45,7 @@ class Budget:
 
 @dataclass(frozen=True)
 class User:
-    id: int
+    uid: str
     username: str
     display_name: str
 
@@ -59,7 +59,7 @@ class KlokkuApi:
 
     url: str = ""
     username: str = ""
-    user_id: int = 0
+    user_uid: str = ""
     session: Optional[aiohttp.ClientSession] = None
 
     def __init__(self, url):
@@ -93,7 +93,7 @@ class KlokkuApi:
                 return False
             for user in users:
                 if user.username == username:
-                    self.user_id = user.id
+                    self.user_uid = user.uid
                     return True
             return False
         except KlokkuApiError as e:
@@ -101,9 +101,9 @@ class KlokkuApi:
             return False
 
     @staticmethod
-    def __headers(user_id: int) -> dict:
+    def __headers(user_uid: str) -> dict:
         return {
-            "X-User-Id": str(user_id)
+            "X-User-Id": user_uid
         }
 
     async def get_current_event(self) -> Event | None:
@@ -116,7 +116,7 @@ class KlokkuApi:
         :raises KlokkuDataParsingError: If there's an error when parsing the response.
         :raises KlokkuDataStructureError: If the response doesn't have the expected structure.
         """
-        if not self.user_id:
+        if not self.user_uid:
             error = KlokkuAuthenticationError("Unauthenticated - cannot fetch current budget")
             _LOGGER.warning(str(error))
             return None
@@ -131,7 +131,7 @@ class KlokkuApi:
                 close_after = False
 
             try:
-                async with self.session.get(url, headers=self.__headers(self.user_id)) as response:
+                async with self.session.get(url, headers=self.__headers(self.user_uid)) as response:
                     if response.status >= 400:
                         error_msg = await response.text()
                         raise KlokkuApiResponseError(response.status, error_msg)
@@ -172,7 +172,7 @@ class KlokkuApi:
         :raises KlokkuDataParsingError: If there's an error when parsing the response.
         :raises KlokkuDataStructureError: If the response doesn't have the expected structure.
         """
-        if not self.user_id:
+        if not self.user_uid:
             error = KlokkuAuthenticationError("Unauthenticated - cannot fetch budgets")
             _LOGGER.warning(str(error))
             return None
@@ -187,7 +187,7 @@ class KlokkuApi:
                 close_after = False
 
             try:
-                async with self.session.get(url, headers=self.__headers(self.user_id)) as response:
+                async with self.session.get(url, headers=self.__headers(self.user_uid)) as response:
                     if response.status >= 400:
                         error_msg = await response.text()
                         raise KlokkuApiResponseError(response.status, error_msg)
@@ -244,7 +244,7 @@ class KlokkuApi:
                         raise KlokkuDataParsingError(f"Failed to parse JSON response: {e}")
 
                     try:
-                        result = [User(id=user["id"], username=user["username"], display_name=user["displayName"]) for user in data]
+                        result = [User(uid=user["uid"], username=user["username"], display_name=user["displayName"]) for user in data]
                     except (KeyError, TypeError) as e:
                         raise KlokkuDataStructureError(f"Unexpected data structure in response: {e}")
             except aiohttp.ClientConnectionError as e:
@@ -270,7 +270,7 @@ class KlokkuApi:
         :raises KlokkuApiResponseError: If the API returns an error response.
         :raises KlokkuDataParsingError: If there's an error when parsing the response.
         """
-        if not self.user_id:
+        if not self.user_uid:
             error = KlokkuAuthenticationError("Unauthenticated - cannot set current budget")
             _LOGGER.warning(str(error))
             return None
@@ -285,7 +285,7 @@ class KlokkuApi:
                 close_after = False
 
             try:
-                async with self.session.post(url, headers=self.__headers(self.user_id), json={"budgetId": budget_id}) as response:
+                async with self.session.post(url, headers=self.__headers(self.user_uid), json={"budgetId": budget_id}) as response:
                     if response.status >= 400:
                         error_msg = await response.text()
                         raise KlokkuApiResponseError(response.status, error_msg)

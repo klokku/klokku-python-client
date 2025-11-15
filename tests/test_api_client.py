@@ -4,7 +4,7 @@ from klokku_python_client.api_client import KlokkuApi, Budget, User, Event
 
 # Constants for testing
 TEST_URL = "http://klokku-api.example.com/"
-TEST_USER_ID = 123
+TEST_USER_UID = "32cefa4d-87c6-43ae-b36c-83378bf1f1b4"
 TEST_USERNAME = "testuser"
 
 
@@ -29,8 +29,8 @@ async def test_authenticate_success(api_client, mock_aioresponse):
     """Test successful authentication."""
     # Mock the get_users response
     users_data = [
-        {"id": TEST_USER_ID, "username": TEST_USERNAME, "displayName": "Test User"},
-        {"id": 456, "username": "otheruser", "displayName": "Other User"}
+        {"uid": TEST_USER_UID, "username": TEST_USERNAME, "displayName": "Test User"},
+        {"uid": "cf479ef7-bbc5-413d-8b1b-bec6962d9174", "username": "otheruser", "displayName": "Other User"}
     ]
     mock_aioresponse.get(f"{TEST_URL}api/user", status=200, payload=users_data)
     
@@ -39,14 +39,14 @@ async def test_authenticate_success(api_client, mock_aioresponse):
     
     # Verify results
     assert result is True
-    assert api_client.user_id == TEST_USER_ID
+    assert api_client.user_uid == TEST_USER_UID
 
 
 async def test_authenticate_user_not_found(api_client, mock_aioresponse):
     """Test authentication when a user is not found."""
     # Mock the get_users response
     users_data = [
-        {"id": 456, "username": "otheruser", "displayName": "Other User"}
+        {"uid": "cf479ef7-bbc5-413d-8b1b-bec6962d9174", "username": "otheruser", "displayName": "Other User"}
     ]
     mock_aioresponse.get(f"{TEST_URL}api/user", status=200, payload=users_data)
     
@@ -55,7 +55,7 @@ async def test_authenticate_user_not_found(api_client, mock_aioresponse):
     
     # Verify results
     assert result is False
-    assert api_client.user_id == 0
+    assert api_client.user_uid == ""
 
 
 async def test_authenticate_api_error(api_client, mock_aioresponse):
@@ -68,15 +68,15 @@ async def test_authenticate_api_error(api_client, mock_aioresponse):
     
     # Verify results
     assert result is False
-    assert api_client.user_id == 0
+    assert api_client.user_uid == ""
 
 
 async def test_get_users_success(api_client, mock_aioresponse):
     """Test successful retrieval of users."""
     # Mock the get_users response
     users_data = [
-        {"id": TEST_USER_ID, "username": TEST_USERNAME, "displayName": "Test User"},
-        {"id": 456, "username": "otheruser", "displayName": "Other User"}
+        {"uid": TEST_USER_UID, "username": TEST_USERNAME, "displayName": "Test User"},
+        {"uid": "cf479ef7-bbc5-413d-8b1b-bec6962d9174", "username": "otheruser", "displayName": "Other User"}
     ]
     mock_aioresponse.get(f"{TEST_URL}api/user", status=200, payload=users_data)
     
@@ -87,7 +87,7 @@ async def test_get_users_success(api_client, mock_aioresponse):
     assert users is not None
     assert len(users) == 2
     assert isinstance(users[0], User)
-    assert users[0].id == TEST_USER_ID
+    assert users[0].uid == TEST_USER_UID
     assert users[0].username == TEST_USERNAME
     assert users[0].display_name == "Test User"
 
@@ -106,8 +106,8 @@ async def test_get_users_error(api_client, mock_aioresponse):
 
 async def test_get_all_budgets_success(api_client, mock_aioresponse):
     """Test successful retrieval of all budgets."""
-    # Set up user_id
-    api_client.user_id = TEST_USER_ID
+    # Set up user_uid
+    api_client.user_uid = TEST_USER_UID
     
     # Mock the get_all_budgets response
     budgets_data = [
@@ -118,7 +118,7 @@ async def test_get_all_budgets_success(api_client, mock_aioresponse):
         f"{TEST_URL}api/budget",
         status=200,
         payload=budgets_data,
-        headers={"X-User-Id": str(TEST_USER_ID)}
+        headers={"X-User-Id": str(TEST_USER_UID)}
     )
     
     # Call get_all_budgets
@@ -137,7 +137,7 @@ async def test_get_all_budgets_success(api_client, mock_aioresponse):
 
 async def test_get_all_budgets_unauthenticated(api_client, mock_aioresponse):
     """Test get_all_budgets when not authenticated."""
-    # Call get_all_budgets without setting user_id
+    # Call get_all_budgets without setting user_uid
     budgets = await api_client.get_all_budgets()
     
     # Verify results
@@ -146,14 +146,14 @@ async def test_get_all_budgets_unauthenticated(api_client, mock_aioresponse):
 
 async def test_get_all_budgets_error(api_client, mock_aioresponse):
     """Test get_all_budgets when API returns an error."""
-    # Set up user_id
-    api_client.user_id = TEST_USER_ID
+    # Set up user_uid
+    api_client.user_uid = TEST_USER_UID
     
     # Mock the get_all_budgets response with an error
     mock_aioresponse.get(
         f"{TEST_URL}api/budget",
         status=500,
-        headers={"X-User-Id": str(TEST_USER_ID)}
+        headers={"X-User-Id": str(TEST_USER_UID)}
     )
     
     # Call get_all_budgets
@@ -165,8 +165,8 @@ async def test_get_all_budgets_error(api_client, mock_aioresponse):
 
 async def test_get_current_event_success(api_client, mock_aioresponse):
     """Test successful retrieval of current event."""
-    # Set up user_id
-    api_client.user_id = TEST_USER_ID
+    # Set up user_uid
+    api_client.user_uid = TEST_USER_UID
     
     # Mock the get_current_event response
     event_data = {
@@ -184,7 +184,7 @@ async def test_get_current_event_success(api_client, mock_aioresponse):
         f"{TEST_URL}api/event/current",
         status=200,
         payload=event_data,
-        headers={"X-User-Id": str(TEST_USER_ID)}
+        headers={"X-User-Id": str(TEST_USER_UID)}
     )
     
     # Call get_current_event
@@ -205,7 +205,7 @@ async def test_get_current_event_success(api_client, mock_aioresponse):
 
 async def test_get_current_event_unauthenticated(api_client, mock_aioresponse):
     """Test get_current_event when not authenticated."""
-    # Call get_current_event without setting user_id
+    # Call get_current_event without setting user_uid
     event = await api_client.get_current_event()
     
     # Verify results
@@ -214,14 +214,14 @@ async def test_get_current_event_unauthenticated(api_client, mock_aioresponse):
 
 async def test_get_current_event_error(api_client, mock_aioresponse):
     """Test get_current_event when API returns an error."""
-    # Set up user_id
-    api_client.user_id = TEST_USER_ID
+    # Set up user_uid
+    api_client.user_uid = TEST_USER_UID
     
     # Mock the get_current_event response with an error
     mock_aioresponse.get(
         f"{TEST_URL}api/event/current",
         status=500,
-        headers={"X-User-Id": str(TEST_USER_ID)}
+        headers={"X-User-Id": str(TEST_USER_UID)}
     )
     
     # Call get_current_event
@@ -233,8 +233,8 @@ async def test_get_current_event_error(api_client, mock_aioresponse):
 
 async def test_set_current_budget_success(api_client, mock_aioresponse):
     """Test successful setting of current budget."""
-    # Set up user_id
-    api_client.user_id = TEST_USER_ID
+    # Set up user_uid
+    api_client.user_uid = TEST_USER_UID
     budget_id = 1
     
     # Mock the set_current_budget response
@@ -243,7 +243,7 @@ async def test_set_current_budget_success(api_client, mock_aioresponse):
         f"{TEST_URL}api/event",
         status=200,
         payload=response_data,
-        headers={"X-User-Id": str(TEST_USER_ID)}
+        headers={"X-User-Id": str(TEST_USER_UID)}
     )
     
     # Call set_current_budget
@@ -256,7 +256,7 @@ async def test_set_current_budget_success(api_client, mock_aioresponse):
 
 async def test_set_current_budget_unauthenticated(api_client, mock_aioresponse):
     """Test set_current_budget when not authenticated."""
-    # Call set_current_budget without setting user_id
+    # Call set_current_budget without setting user_uid
     result = await api_client.set_current_budget(1)
     
     # Verify results
@@ -265,15 +265,15 @@ async def test_set_current_budget_unauthenticated(api_client, mock_aioresponse):
 
 async def test_set_current_budget_error(api_client, mock_aioresponse):
     """Test set_current_budget when API returns an error."""
-    # Set up user_id
-    api_client.user_id = TEST_USER_ID
+    # Set up user_uid
+    api_client.user_uid = TEST_USER_UID
     budget_id = 1
     
     # Mock the set_current_budget response with an error
     mock_aioresponse.post(
         f"{TEST_URL}api/event",
         status=500,
-        headers={"X-User-Id": str(TEST_USER_ID)}
+        headers={"X-User-Id": str(TEST_USER_UID)}
     )
     
     # Call set_current_budget
@@ -291,7 +291,7 @@ async def test_context_manager(mock_aioresponse):
         
         # Mock a simple API call
         users_data = [
-            {"id": TEST_USER_ID, "username": TEST_USERNAME, "displayName": "Test User"}
+            {"uid": TEST_USER_UID, "username": TEST_USERNAME, "displayName": "Test User"}
         ]
         mock_aioresponse.get(f"{TEST_URL}api/user", status=200, payload=users_data)
         

@@ -27,8 +27,10 @@ from klokku_python_client import KlokkuApi
 async def main():
     # Create a client instance
     async with KlokkuApi("https://api.klokku.example.com/") as client:
-        # Authenticate with a username
+        # Authenticate with a username (for a self-hosted version)
         authenticated = await client.authenticate("your_username")
+        # or with a personal access token (for a cloud version)
+        # authenticated = await client.authenticate("pat.<the-rest-of-the-token>")
         if not authenticated:
             print("Authentication failed")
             return

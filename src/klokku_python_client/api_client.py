@@ -1,3 +1,5 @@
+from enum import Enum
+
 import aiohttp
 import logging
 from typing import Optional
@@ -11,7 +13,7 @@ class KlokkuApiError(Exception):
     pass
 
 class KlokkuAuthenticationError(KlokkuApiError):
-    """Raised when authentication fails or user is not authenticated."""
+    """Raised when authentication fails or a user is not authenticated."""
     pass
 
 class KlokkuNetworkError(KlokkuApiError):
@@ -55,11 +57,18 @@ class Event:
     startTime: str
     budget: Budget
 
+class AuthType(Enum):
+    PERSONAL_ACCESS_TOKEN = "personal_access_token"
+    USERNAME = "username"
+    NONE = "none"
+
 class KlokkuApi:
 
     url: str = ""
     username: str = ""
-    user_uid: str = ""
+    authentication_type: AuthType = AuthType.NONE
+    authenticated_user_uid: str = ""
+    personal_access_token: str = ""
     session: Optional[aiohttp.ClientSession] = None
 
     def __init__(self, url):
@@ -77,34 +86,128 @@ class KlokkuApi:
             await self.session.close()
             self.session = None
 
-    async def authenticate(self, username: str) -> bool:
+    async def authenticate(self, username_or_token: str) -> bool:
         """
         Authenticate with the API using a username.
-        :param username: The username to authenticate with.
+        :param username_or_token: The username or personal access token to authenticate with.
         :return: True if authentication was successful, False otherwise.
         :raises KlokkuNetworkError: If there's a network error.
         :raises KlokkuApiResponseError: If the API returns an error response.
         :raises KlokkuDataParsingError: If there's an error when parsing the response.
         :raises KlokkuDataStructureError: If the response doesn't have the expected structure.
         """
-        try:
-            users = await self.get_users()
-            if not users:
+        authenticate_with_pat = self.is_personal_access_token(username_or_token)
+        if not authenticate_with_pat:
+            try:
+                username = username_or_token
+                users = await self.get_users()
+                if not users:
+                    return False
+                for user in users:
+                    if user.username == username:
+                        self.authenticated_user_uid = user.uid
+                        self.authentication_type = AuthType.USERNAME
+                        return True
                 return False
-            for user in users:
-                if user.username == username:
-                    self.user_uid = user.uid
-                    return True
-            return False
-        except KlokkuApiError as e:
-            _LOGGER.error(f"Authentication error: {e}")
-            return False
+            except KlokkuApiError as e:
+                _LOGGER.error(f"Authentication error: {e}")
+                self.authentication_type = AuthType.NONE
+                self.authenticated_user_uid = ""
+                return False
+        else:
+            try:
+                self.personal_access_token = username_or_token
+                self.authentication_type = AuthType.PERSONAL_ACCESS_TOKEN
+                current_user = await self.get_current_user()
+                if not current_user:
+                    self.personal_access_token = ""
+                    self.authentication_type = AuthType.NONE
+                    return False
+                self.authenticated_user_uid = current_user.uid
+                self.authentication_type = AuthType.PERSONAL_ACCESS_TOKEN
+                return True
+            except KlokkuApiError as e:
+                _LOGGER.error(f"Authentication error: {e}")
+                self.personal_access_token = ""
+                self.authentication_type = AuthType.NONE
+                return False
+
+    def __headers(self) -> dict:
+        headers = {}
+        if self.authentication_type == AuthType.USERNAME:
+            headers["X-User-Id"] = self.authenticated_user_uid
+        elif self.authentication_type == AuthType.PERSONAL_ACCESS_TOKEN:
+            headers["Authorization"] = f"Bearer {self.personal_access_token}"
+        return headers
 
     @staticmethod
-    def __headers(user_uid: str) -> dict:
-        return {
-            "X-User-Id": user_uid
-        }
+    def is_personal_access_token(username_or_token: str) -> bool:
+        """
+        Check if the provided username_or_token is a personal access token.
+        Personal access tokens start with `pat.`
+        """
+        return username_or_token.startswith("pat.")
+
+    def is_authenticated(self) -> bool:
+        return self.authentication_type != AuthType.NONE
+
+    async def get_current_user(self) -> User | None:
+        """
+        Fetch the current user data from the API.
+        :return: Parsed current user data as a dictionary.
+        :raises KlokkuAuthenticationError: If the user is not authenticated.
+        :raises KlokkuNetworkError: If there's a network error.
+        :raises KlokkuApiResponseError: If the API returns an error response.
+        :raises KlokkuDataParsingError: If there's an error when parsing the response.
+        :raises KlokkuDataStructureError: If the response doesn't have the expected structure.
+        """
+        if not self.is_authenticated():
+            error = KlokkuAuthenticationError("Unauthenticated - cannot fetch current user")
+            _LOGGER.warning(str(error))
+            return None
+
+        url = f"{self.url}api/user/current"
+
+        try:
+            # Create a session if one doesn't exist
+            if not self.session:
+                self.session = aiohttp.ClientSession()
+                close_after = True
+            else:
+                close_after = False
+
+            try:
+                async with self.session.get(url, headers=self.__headers()) as response:
+                    if response.status >= 400:
+                        error_msg = await response.text()
+                        raise KlokkuApiResponseError(response.status, error_msg)
+
+                    try:
+                        data = await response.json()
+                    except aiohttp.ClientResponseError as e:
+                        raise KlokkuDataParsingError(f"Failed to parse JSON response: {e}")
+
+                    try:
+                        result = User(
+                            uid=data["uid"],
+                            username=data["username"],
+                            display_name=data["displayName"],
+                        )
+                    except (KeyError, TypeError, ValueError) as e:
+                        raise KlokkuDataStructureError(f"Unexpected data structure in response: {e}")
+            except aiohttp.ClientConnectionError as e:
+                raise KlokkuNetworkError(f"Connection error: {e}")
+
+            # Close the session if we created it in this method
+            if close_after:
+                await self.session.close()
+                self.session = None
+
+            return result
+        except KlokkuApiError as e:
+            _LOGGER.error(f"Error fetching current user: {e}")
+            return None
+
 
     async def get_current_event(self) -> Event | None:
         """
@@ -116,7 +219,7 @@ class KlokkuApi:
         :raises KlokkuDataParsingError: If there's an error when parsing the response.
         :raises KlokkuDataStructureError: If the response doesn't have the expected structure.
         """
-        if not self.user_uid:
+        if not self.is_authenticated():
             error = KlokkuAuthenticationError("Unauthenticated - cannot fetch current budget")
             _LOGGER.warning(str(error))
             return None
@@ -131,7 +234,7 @@ class KlokkuApi:
                 close_after = False
 
             try:
-                async with self.session.get(url, headers=self.__headers(self.user_uid)) as response:
+                async with self.session.get(url, headers=self.__headers()) as response:
                     if response.status >= 400:
                         error_msg = await response.text()
                         raise KlokkuApiResponseError(response.status, error_msg)
@@ -172,7 +275,7 @@ class KlokkuApi:
         :raises KlokkuDataParsingError: If there's an error when parsing the response.
         :raises KlokkuDataStructureError: If the response doesn't have the expected structure.
         """
-        if not self.user_uid:
+        if not self.is_authenticated():
             error = KlokkuAuthenticationError("Unauthenticated - cannot fetch budgets")
             _LOGGER.warning(str(error))
             return None
@@ -187,7 +290,7 @@ class KlokkuApi:
                 close_after = False
 
             try:
-                async with self.session.get(url, headers=self.__headers(self.user_uid)) as response:
+                async with self.session.get(url, headers=self.__headers()) as response:
                     if response.status >= 400:
                         error_msg = await response.text()
                         raise KlokkuApiResponseError(response.status, error_msg)
@@ -270,7 +373,7 @@ class KlokkuApi:
         :raises KlokkuApiResponseError: If the API returns an error response.
         :raises KlokkuDataParsingError: If there's an error when parsing the response.
         """
-        if not self.user_uid:
+        if not self.is_authenticated():
             error = KlokkuAuthenticationError("Unauthenticated - cannot set current budget")
             _LOGGER.warning(str(error))
             return None
@@ -285,7 +388,7 @@ class KlokkuApi:
                 close_after = False
 
             try:
-                async with self.session.post(url, headers=self.__headers(self.user_uid), json={"budgetId": budget_id}) as response:
+                async with self.session.post(url, headers=self.__headers(), json={"budgetId": budget_id}) as response:
                     if response.status >= 400:
                         error_msg = await response.text()
                         raise KlokkuApiResponseError(response.status, error_msg)

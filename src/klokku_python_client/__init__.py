@@ -8,9 +8,9 @@ from .api_client import (
     KlokkuDataStructureError,
     
     # Data classes
-    Budget,
+    WeeklyItem,
     User,
-    Event,
+    CurrentEvent,
     
     # Main API client
     KlokkuApi,
@@ -26,9 +26,9 @@ __all__ = [
     'KlokkuDataStructureError',
     
     # Data classes
-    'Budget',
+    'WeeklyItem',
     'User',
-    'Event',
+    'CurrentEvent',
     
     # Main API client
     'KlokkuApi',

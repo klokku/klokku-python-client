@@ -1,7 +1,8 @@
 import pytest
+import re
 import json
 from aioresponses import aioresponses, CallbackResult
-from klokku_python_client.api_client import KlokkuApi, Budget, User, Event, AuthType
+from klokku_python_client.api_client import KlokkuApi, WeeklyItem, WeeklyPlan, User, CurrentEvent, AuthType
 
 # Constants for testing
 TEST_URL = "http://klokku-api.example.com/"
@@ -155,78 +156,90 @@ async def test_get_users_error(api_client, mock_aioresponse):
     assert users is None
 
 
-async def test_get_all_budgets_success(api_client, mock_aioresponse):
-    """Test successful retrieval of all budgets."""
-    # Authenticate first to set user_uid
-    mock_aioresponse.get(f"{TEST_URL}api/user", status=200, payload=[{"uid": TEST_USER_UID, "username": TEST_USERNAME, "displayName": "Test User"}])
-    await api_client.authenticate(TEST_USERNAME)
-    
-    # Mock the get_all_budgets response
-    budgets_data = [
-        {"id": 1, "name": "Budget 1", "weeklyTime": 3600, "icon": "icon1", "startDate": "2024-09-08T00:00:00Z"},
-        {"id": 2, "name": "Budget 2", "weeklyTime": 7200, "icon": "icon2", "startDate": "2025-09-08T00:00:00Z"},
-    ]
-    mock_aioresponse.get(
-        f"{TEST_URL}api/budget",
-        status=200,
-        payload=budgets_data,
-        headers={"X-User-Id": str(TEST_USER_UID)}
-    )
-    
-    # Call get_all_budgets
-    budgets = await api_client.get_all_budgets()
-    
-    # Verify results
-    assert budgets is not None
-    assert len(budgets) == 2
-    assert isinstance(budgets[0], Budget)
-    assert budgets[0].id == 1
-    assert budgets[0].name == "Budget 1"
-    assert budgets[0].weeklyTime == 3600
-    assert budgets[0].icon == "icon1"
-    assert budgets[0].startDate == "2024-09-08T00:00:00Z"
-
-
-async def test_get_all_budgets_unauthenticated(api_client, mock_aioresponse):
-    """Test get_all_budgets when not authenticated."""
-
-    # Mock the get_all_budgets response
-    budgets_data = [
-        {"id": 1, "name": "Budget 1", "weeklyTime": 3600, "icon": "icon1", "startDate": "2024-09-08T00:00:00Z"},
-        {"id": 2, "name": "Budget 2", "weeklyTime": 7200, "icon": "icon2", "startDate": "2025-09-08T00:00:00Z"},
-    ]
-    mock_aioresponse.get(
-        f"{TEST_URL}api/budget",
-        status=200,
-        payload=budgets_data,
-        headers={"X-User-Id": str(TEST_USER_UID)}
-    )
-
-    # Call get_all_budgets without setting user_uid
-    budgets = await api_client.get_all_budgets()
-    
-    # Verify results
-    assert budgets is None
-
-
-async def test_get_all_budgets_error(api_client, mock_aioresponse):
-    """Test get_all_budgets when API returns an error."""
-    # Authenticate first to set user_uid
+async def test_get_current_week_plan_success(api_client, mock_aioresponse):
+    """Test successful retrieval of current weekly plan."""
+    # Authenticate first to set user_uid (username auth)
     mock_aioresponse.get(f"{TEST_URL}api/user", status=200, payload=[{"uid": TEST_USER_UID, "username": TEST_USERNAME, "displayName": "Test User"}])
     await api_client.authenticate(TEST_USERNAME)
 
-    # Mock the get_all_budgets response with an error
+    # Mock the get_current_week_plan response
+    weekly_plan_payload = {
+        "budgetPlanId": 99,
+        "items": [
+            {
+                "id": 1,
+                "budgetItemId": 101,
+                "name": "Item 1",
+                "weeklyDuration": 3600,
+                "weeklyOccurrences": 0,
+                "icon": "icon1",
+                "color": "#fff",
+                "notes": "",
+                "position": 0,
+            },
+            {
+                "id": 2,
+                "budgetItemId": 102,
+                "name": "Item 2",
+                "weeklyDuration": 7200,
+                "weeklyOccurrences": 0,
+                "icon": "icon2",
+                "color": "#000",
+                "notes": "",
+                "position": 1,
+            },
+        ],
+    }
+    # note: date param is ignored by aioresponses matcher, but endpoint is correct
     mock_aioresponse.get(
-        f"{TEST_URL}api/budget",
+        re.compile(fr"{TEST_URL}api/weeklyplan.*"),
+        status=200,
+        payload=weekly_plan_payload,
+        headers={"X-User-Id": str(TEST_USER_UID)}
+    )
+
+    # Call get_current_week_plan
+    plan = await api_client.get_current_week_plan()
+
+    # Verify results
+    assert plan is not None
+    assert isinstance(plan, WeeklyPlan)
+    assert plan.budgetPlanId == 99
+    assert isinstance(plan.items, list)
+    assert len(plan.items) == 2
+    assert isinstance(plan.items[0], WeeklyItem)
+    assert plan.items[0].id == 1
+    assert plan.items[0].budgetItemId == 101
+    assert plan.items[0].name == "Item 1"
+    assert plan.items[0].weeklyDuration == 3600
+
+
+async def test_get_current_week_plan_unauthenticated(api_client, mock_aioresponse):
+    """Test get_current_week_plan when not authenticated."""
+    mock_aioresponse.get(
+        re.compile(fr"{TEST_URL}api/weeklyplan.*"),
+        status=200,
+        payload={"budgetPlanId": 1, "items": []},
+    )
+    # Call without authentication
+    plan = await api_client.get_current_week_plan()
+    assert plan is None
+
+
+async def test_get_current_week_plan_error(api_client, mock_aioresponse):
+    """Test get_current_week_plan when API returns an error."""
+    # Authenticate first to set user_uid
+    mock_aioresponse.get(f"{TEST_URL}api/user", status=200, payload=[{"uid": TEST_USER_UID, "username": TEST_USERNAME, "displayName": "Test User"}])
+    await api_client.authenticate(TEST_USERNAME)
+
+    mock_aioresponse.get(
+        re.compile(fr"{TEST_URL}api/weeklyplan.*"),
         status=500,
         headers={"X-User-Id": str(TEST_USER_UID)}
     )
-    
-    # Call get_all_budgets
-    budgets = await api_client.get_all_budgets()
-    
-    # Verify results
-    assert budgets is None
+
+    plan = await api_client.get_current_week_plan()
+    assert plan is None
 
 
 async def test_get_current_event_success(api_client, mock_aioresponse):
@@ -235,17 +248,14 @@ async def test_get_current_event_success(api_client, mock_aioresponse):
     mock_aioresponse.get(f"{TEST_URL}api/user", status=200, payload=[{"uid": TEST_USER_UID, "username": TEST_USERNAME, "displayName": "Test User"}])
     await api_client.authenticate(TEST_USERNAME)
     
-    # Mock the get_current_event response
+    # Mock the get_current_event response (new structure with planItem)
     event_data = {
-        "id": 1,
-        "startTime": "2023-01-01T12:00:00Z",
-        "budget": {
-            "id": 1,
-            "name": "Budget 1",
-            "weeklyTime": 3600,
-            "icon": "icon1",
-            "startDate": "2025-09-08T00:00:00Z"
-        }
+        "planItem": {
+            "budgetItemId": 101,
+            "name": "Item 1",
+            "weeklyDuration": 3600
+        },
+        "startTime": "2023-01-01T12:00:00Z"
     }
     mock_aioresponse.get(
         f"{TEST_URL}api/event/current",
@@ -259,15 +269,11 @@ async def test_get_current_event_success(api_client, mock_aioresponse):
     
     # Verify results
     assert event is not None
-    assert isinstance(event, Event)
-    assert event.id == 1
+    assert isinstance(event, CurrentEvent)
     assert event.startTime == "2023-01-01T12:00:00Z"
-    assert isinstance(event.budget, Budget)
-    assert event.budget.id == 1
-    assert event.budget.name == "Budget 1"
-    assert event.budget.weeklyTime == 3600
-    assert event.budget.icon == "icon1"
-    assert event.budget.startDate == "2025-09-08T00:00:00Z"
+    assert event.planItem.budgetItemId == 101
+    assert event.planItem.name == "Item 1"
+    assert event.planItem.weeklyDuration == 3600
 
 
 async def test_get_current_event_unauthenticated(api_client, mock_aioresponse):
@@ -304,9 +310,32 @@ async def test_set_current_budget_success(api_client, mock_aioresponse):
     # Authenticate first to set user_uid
     mock_aioresponse.get(f"{TEST_URL}api/user", status=200, payload=[{"uid": TEST_USER_UID, "username": TEST_USERNAME, "displayName": "Test User"}])
     await api_client.authenticate(TEST_USERNAME)
-    budget_id = 1
-    
-    # Mock the set_current_budget response
+
+    # Mock weekly plan fetch used inside set_current_event
+    weekly_plan_payload = {
+        "budgetPlanId": 99,
+        "items": [
+            {
+                "id": 1,
+                "budgetItemId": 101,
+                "name": "Item 1",
+                "weeklyDuration": 3600,
+                "weeklyOccurrences": 0,
+                "icon": "icon1",
+                "color": "#fff",
+                "notes": "",
+                "position": 0,
+            }
+        ],
+    }
+    mock_aioresponse.get(
+        re.compile(fr"{TEST_URL}api/weeklyplan.*"),
+        status=200,
+        payload=weekly_plan_payload,
+        headers={"X-User-Id": str(TEST_USER_UID)}
+    )
+
+    # Mock the set_current_event response
     response_data = {"success": True}
     mock_aioresponse.post(
         f"{TEST_URL}api/event",
@@ -314,9 +343,9 @@ async def test_set_current_budget_success(api_client, mock_aioresponse):
         payload=response_data,
         headers={"X-User-Id": str(TEST_USER_UID)}
     )
-    
-    # Call set_current_budget
-    result = await api_client.set_current_budget(budget_id)
+
+    # Call set_current_event with budgetItemId from weekly plan
+    result = await api_client.set_current_event(101)
     
     # Verify results
     assert result is not None
@@ -326,7 +355,7 @@ async def test_set_current_budget_success(api_client, mock_aioresponse):
 async def test_set_current_budget_unauthenticated(api_client, mock_aioresponse):
     """Test set_current_budget when not authenticated."""
     # Call set_current_budget without setting user_uid
-    result = await api_client.set_current_budget(1)
+    result = await api_client.set_current_event(1)
     
     # Verify results
     assert result is None
@@ -337,17 +366,40 @@ async def test_set_current_budget_error(api_client, mock_aioresponse):
     # Authenticate first to set user_uid
     mock_aioresponse.get(f"{TEST_URL}api/user", status=200, payload=[{"uid": TEST_USER_UID, "username": TEST_USERNAME, "displayName": "Test User"}])
     await api_client.authenticate(TEST_USERNAME)
-    budget_id = 1
-    
-    # Mock the set_current_budget response with an error
+
+    # Mock weekly plan fetch used inside set_current_event
+    weekly_plan_payload = {
+        "budgetPlanId": 99,
+        "items": [
+            {
+                "id": 1,
+                "budgetItemId": 101,
+                "name": "Item 1",
+                "weeklyDuration": 3600,
+                "weeklyOccurrences": 0,
+                "icon": "icon1",
+                "color": "#fff",
+                "notes": "",
+                "position": 0,
+            }
+        ],
+    }
+    mock_aioresponse.get(
+        re.compile(fr"{TEST_URL}api/weeklyplan.*"),
+        status=200,
+        payload=weekly_plan_payload,
+        headers={"X-User-Id": str(TEST_USER_UID)}
+    )
+
+    # Mock the set_current_event response with an error
     mock_aioresponse.post(
         f"{TEST_URL}api/event",
         status=500,
         headers={"X-User-Id": str(TEST_USER_UID)}
     )
-    
-    # Call set_current_budget
-    result = await api_client.set_current_budget(budget_id)
+
+    # Call set_current_event
+    result = await api_client.set_current_event(101)
     
     # Verify results
     assert result is None

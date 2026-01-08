@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 
 import aiohttp
@@ -8,42 +9,58 @@ from dataclasses import dataclass
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class KlokkuApiError(Exception):
     """Base exception for all Klokku API errors."""
     pass
+
 
 class KlokkuAuthenticationError(KlokkuApiError):
     """Raised when authentication fails or a user is not authenticated."""
     pass
 
+
 class KlokkuNetworkError(KlokkuApiError):
     """Raised when there's a network-related error."""
     pass
 
+
 class KlokkuApiResponseError(KlokkuApiError):
     """Raised when the API returns an error response."""
+
     def __init__(self, status_code: int, message: str = None):
         self.status_code = status_code
         self.message = message
         super().__init__(f"API returned error {status_code}: {message}")
 
+
 class KlokkuDataParsingError(KlokkuApiError):
     """Raised when there's an error parsing the API response data."""
     pass
+
 
 class KlokkuDataStructureError(KlokkuApiError):
     """Raised when the API response data doesn't have the expected structure."""
     pass
 
+
 @dataclass(frozen=True)
-class Budget:
+class WeeklyItem:
     id: int
+    budgetItemId: int
     name: str
-    weeklyTime: int
+    weeklyDuration: int
     weeklyOccurrences: int = 0
     icon: str = ""
-    startDate: str = ""
-    endDate: str = ""
+    color: str = ""
+    notes: str = ""
+    position: int = 0
+
+@dataclass(frozen=True)
+class WeeklyPlan:
+    budgetPlanId: int
+    items: list[WeeklyItem]
+
 
 @dataclass(frozen=True)
 class User:
@@ -51,19 +68,27 @@ class User:
     username: str
     display_name: str
 
+
 @dataclass(frozen=True)
-class Event:
-    id: int
+class CurrentEventPlanItem:
+    budgetItemId: int
+    name: str
+    weeklyDuration: int
+
+
+@dataclass(frozen=True)
+class CurrentEvent:
+    planItem: CurrentEventPlanItem
     startTime: str
-    budget: Budget
+
 
 class AuthType(Enum):
     PERSONAL_ACCESS_TOKEN = "personal_access_token"
     USERNAME = "username"
     NONE = "none"
 
-class KlokkuApi:
 
+class KlokkuApi:
     url: str = ""
     username: str = ""
     authentication_type: AuthType = AuthType.NONE
@@ -133,7 +158,7 @@ class KlokkuApi:
                 return False
 
     def __headers(self) -> dict:
-        headers = {}
+        headers = {"Accept": "application/json"}
         if self.authentication_type == AuthType.USERNAME:
             headers["X-User-Id"] = self.authenticated_user_uid
         elif self.authentication_type == AuthType.PERSONAL_ACCESS_TOKEN:
@@ -208,11 +233,10 @@ class KlokkuApi:
             _LOGGER.error(f"Error fetching current user: {e}")
             return None
 
-
-    async def get_current_event(self) -> Event | None:
+    async def get_current_event(self) -> CurrentEvent | None:
         """
-        Fetch the current budget from the API.
-        :return: Parsed current budget data as a dictionary.
+        Fetch the current event from the API.
+        :return: Current event
         :raises KlokkuAuthenticationError: If the user is not authenticated.
         :raises KlokkuNetworkError: If there's a network error.
         :raises KlokkuApiResponseError: If the API returns an error response.
@@ -245,10 +269,9 @@ class KlokkuApi:
                         raise KlokkuDataParsingError(f"Failed to parse JSON response: {e}")
 
                     try:
-                        result = Event(
-                            id=data["id"],
+                        result = CurrentEvent(
+                            planItem=CurrentEventPlanItem(**data["planItem"]),
                             startTime=data["startTime"],
-                            budget=Budget(**data["budget"]),
                         )
                     except (KeyError, TypeError, ValueError) as e:
                         raise KlokkuDataStructureError(f"Unexpected data structure in response: {e}")
@@ -262,13 +285,13 @@ class KlokkuApi:
 
             return result
         except KlokkuApiError as e:
-            _LOGGER.error(f"Error fetching current budget: {e}")
+            _LOGGER.error(f"Error fetching current event: {e}")
             return None
 
-    async def get_all_budgets(self) -> list[Budget] | None:
+    async def get_current_week_plan(self) -> WeeklyPlan | None:
         """
-        Fetch all budgets from the API.
-        :return: Parsed list of all budgets.
+        Fetch the current week plan from the API.
+        :return: Parsed current week plan.
         :raises KlokkuAuthenticationError: If the user is not authenticated.
         :raises KlokkuNetworkError: If there's a network error.
         :raises KlokkuApiResponseError: If the API returns an error response.
@@ -276,11 +299,12 @@ class KlokkuApi:
         :raises KlokkuDataStructureError: If the response doesn't have the expected structure.
         """
         if not self.is_authenticated():
-            error = KlokkuAuthenticationError("Unauthenticated - cannot fetch budgets")
+            error = KlokkuAuthenticationError("Unauthenticated - cannot fetch weekly plan")
             _LOGGER.warning(str(error))
             return None
 
-        url = f"{self.url}api/budget"
+        now = datetime.now().astimezone().isoformat()
+        url = f"{self.url}api/weeklyplan"
         try:
             # Create a session if one doesn't exist
             if not self.session:
@@ -290,7 +314,7 @@ class KlokkuApi:
                 close_after = False
 
             try:
-                async with self.session.get(url, headers=self.__headers()) as response:
+                async with self.session.get(url, headers=self.__headers(), params={"date": now}) as response:
                     if response.status >= 400:
                         error_msg = await response.text()
                         raise KlokkuApiResponseError(response.status, error_msg)
@@ -301,7 +325,10 @@ class KlokkuApi:
                         raise KlokkuDataParsingError(f"Failed to parse JSON response: {e}")
 
                     try:
-                        result = [Budget(**budget) for budget in data]
+                        result = WeeklyPlan(
+                            budgetPlanId=data["budgetPlanId"],
+                            items=[WeeklyItem(**item) for item in data["items"]]
+                        )
                     except (KeyError, TypeError, ValueError) as e:
                         raise KlokkuDataStructureError(f"Unexpected data structure in response: {e}")
             except aiohttp.ClientConnectionError as e:
@@ -314,7 +341,7 @@ class KlokkuApi:
 
             return result
         except KlokkuApiError as e:
-            _LOGGER.error(f"Error fetching all budgets: {e}")
+            _LOGGER.error(f"Error fetching weekly plan: {e}")
             return None
 
     async def get_users(self) -> list[User] | None:
@@ -363,10 +390,10 @@ class KlokkuApi:
             _LOGGER.error(f"Error fetching all users: {e}")
             return None
 
-    async def set_current_budget(self, budget_id: int):
+    async def set_current_event(self, budget_item_id: int):
         """
-        Sets the currently used budget.
-        :param budget_id: The ID of the budget to set as current.
+        Change the current event to the specified weekly item.
+        :param budget_item_id: The ID of the weekly item to set as current.
         :return: The response data or None if an error occurred.
         :raises KlokkuAuthenticationError: If the user is not authenticated.
         :raises KlokkuNetworkError: If there's a network error.
@@ -374,8 +401,18 @@ class KlokkuApi:
         :raises KlokkuDataParsingError: If there's an error when parsing the response.
         """
         if not self.is_authenticated():
-            error = KlokkuAuthenticationError("Unauthenticated - cannot set current budget")
+            error = KlokkuAuthenticationError("Unauthenticated - cannot set current event")
             _LOGGER.warning(str(error))
+            return None
+
+        weekly_plan = await self.get_current_week_plan()
+        if not weekly_plan:
+            return None
+
+        # Find item on weekly plan with the specified budgetItemId
+        item = next((i for i in weekly_plan.items if i.budgetItemId == budget_item_id), None)
+        if not item:
+            _LOGGER.warning(f"Item with budget_item_id {budget_item_id} not found in weekly plan")
             return None
 
         url = f"{self.url}api/event"
@@ -388,7 +425,13 @@ class KlokkuApi:
                 close_after = False
 
             try:
-                async with self.session.post(url, headers=self.__headers(), json={"budgetId": budget_id}) as response:
+                async with self.session.post(url,
+                                             headers=self.__headers(),
+                                             json={
+                                                 "budgetItemId": item.budgetItemId,
+                                                 "name": item.name,
+                                                 "weeklyDuration": item.weeklyDuration
+                                             }) as response:
                     if response.status >= 400:
                         error_msg = await response.text()
                         raise KlokkuApiResponseError(response.status, error_msg)

@@ -26,34 +26,37 @@ from klokku_python_client import KlokkuApi
 
 async def main():
     # Create a client instance
-    async with KlokkuApi("https://api.klokku.example.com/") as client:
-        # Authenticate with a username (for a self-hosted version)
-        authenticated = await client.authenticate("your_username")
-        # or with a personal access token (for a cloud version)
-        # authenticated = await client.authenticate("pat.<the-rest-of-the-token>")
+    async with KlokkuApi("https://app.klokku.com/") as client:
+        # Authenticate with a username (self‑hosted) or a personal access token (cloud)
+        # authenticated = await client.authenticate("your_username")
+        authenticated = await client.authenticate("pat.<the-rest-of-the-token>")
         if not authenticated:
             print("Authentication failed")
             return
 
-        # Get all budgets
-        budgets = await client.get_all_budgets()
-        if budgets:
-            print(f"Found {len(budgets)} budgets:")
-            for budget in budgets:
-                print(f"- {budget.name} (ID: {budget.id})")
+        # Get weekly plan
+        weekly_plan = await client.get_current_week_plan()
+        if not weekly_plan:
+            print("Failed to fetch weekly plan")
+            return
+
+        if weekly_plan.items:
+            print(f"Found {len(weekly_plan.items)} budgets:")
+            for item in weekly_plan.items:
+                print(f"- {item.name} (ID: {item.budgetItemId})")
 
         # Get current event
         current_event = await client.get_current_event()
         if current_event:
-            print(f"Current budget: {current_event.budget.name}")
+            print(f"Current item: {current_event.planItem.name}")
             print(f"Started at: {current_event.startTime}")
 
-        # Set a different budget
-        if budgets and len(budgets) > 1:
-            new_budget_id = budgets[1].id
-            result = await client.set_current_budget(new_budget_id)
+        # Set a different item
+        if weekly_plan.items and len(weekly_plan.items) > 1:
+            new_budget_id = weekly_plan.items[1].budgetItemId
+            result = await client.set_current_event(new_budget_id)
             if result:
-                print(f"Set current budget to ID: {new_budget_id}")
+                print(f"Set current item to ID: {new_budget_id}")
 
 # Run the async function
 asyncio.run(main())

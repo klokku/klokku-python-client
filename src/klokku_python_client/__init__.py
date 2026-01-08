@@ -11,6 +11,8 @@ from .api_client import (
     WeeklyItem,
     User,
     CurrentEvent,
+    WeeklyPlan,
+    CurrentEventPlanItem,
     
     # Main API client
     KlokkuApi,
@@ -29,7 +31,9 @@ __all__ = [
     'WeeklyItem',
     'User',
     'CurrentEvent',
-    
+    'WeeklyPlan',
+    'CurrentEventPlanItem',
+
     # Main API client
     'KlokkuApi',
 ]
